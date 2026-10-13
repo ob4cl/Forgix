@@ -1,0 +1,11 @@
+ :root { font-family: system-ui, sans-serif; color: #172033; background: #f5f7fb; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(100% - 2rem, 44rem); margin: 12vh auto; padding: clamp(1.5rem, 5vw, 3rem); background: white; border: 1px solid #dbe2ee; border-radius: 1.25rem; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.1; }
+p { line-height: 1.6; }
+.eyebrow { color: #485a79; font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+button { font: inherit; cursor: pointer; border: 1px solid #c4cfe1; border-radius: .5rem; padding: .75rem 1rem; color: #172033; background: #e9eef8; }
+button:hover { background: #dce5f5; }
+button:focus-visible { outline: 3px solid #4361ee; outline-offset: 3px; }

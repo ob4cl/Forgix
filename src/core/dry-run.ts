@@ -16,13 +16,33 @@ export interface DryRunResult {
   directories: Set<string>;
 }
 
-const BINARY_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".svg", ".pdf", ".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".dylib", ".bin"];
+const BINARY_EXTENSIONS = [
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".ico",
+  ".webp",
+  ".svg",
+  ".pdf",
+  ".zip",
+  ".tar",
+  ".gz",
+  ".exe",
+  ".dll",
+  ".so",
+  ".dylib",
+  ".bin",
+];
 
 function isBinaryFile(filePath: string): boolean {
   return BINARY_EXTENSIONS.includes(path.extname(filePath).toLowerCase());
 }
 
-export function scanTemplate(sourcePath: string, targetBase: string): DryRunResult {
+export function scanTemplate(
+  sourcePath: string,
+  targetBase: string,
+): DryRunResult {
   const entries: DryRunEntry[] = [];
   const directories = new Set<string>();
   let totalSize = 0;
@@ -31,9 +51,25 @@ export function scanTemplate(sourcePath: string, targetBase: string): DryRunResu
     const dirEntries = fs.readdirSync(src, { withFileTypes: true });
     for (const entry of dirEntries) {
       if (entry.name === "node_modules" || entry.name === ".git") continue;
-      if (entry.name === "hooks.yaml" || entry.name === "template.yaml") continue;
+      if (
+        ["hooks.yaml", "template.yaml", "composition.yaml"].includes(entry.name)
+      )
+        continue;
 
-      const relPath = rel ? `${rel}/${entry.name}` : entry.name;
+      if (
+        entry.name === "_gitignore" &&
+        fs.existsSync(path.join(src, ".gitignore"))
+      ) {
+        if (
+          !fs
+            .readFileSync(path.join(src, "_gitignore"))
+            .equals(fs.readFileSync(path.join(src, ".gitignore")))
+        )
+          throw new Error("Conflicting ignore assets.");
+        continue;
+      }
+      const name = entry.name === "_gitignore" ? ".gitignore" : entry.name;
+      const relPath = rel ? `${rel}/${name}` : name;
       const fullPath = path.join(src, entry.name);
 
       if (entry.isDirectory()) {
@@ -66,7 +102,9 @@ export function scanTemplate(sourcePath: string, targetBase: string): DryRunResu
 }
 
 export function printDryRun(result: DryRunResult): void {
-  console.log(chalk.cyan("\n  Preview — files that would be created/modified:\n"));
+  console.log(
+    chalk.cyan("\n  Preview — files that would be created/modified:\n"),
+  );
 
   // Group by directory
   const byDir = new Map<string, DryRunEntry[]>();
@@ -84,7 +122,8 @@ export function printDryRun(result: DryRunResult): void {
     }
     const files = byDir.get(dir)!.sort((a, b) => a.path.localeCompare(b.path));
     for (const file of files) {
-      const icon = file.type === "create" ? chalk.green("+") : chalk.yellow("~");
+      const icon =
+        file.type === "create" ? chalk.green("+") : chalk.yellow("~");
       const size = formatSize(file.size || 0);
       const binary = isBinaryFile(file.path) ? chalk.gray(" (binary)") : "";
       console.log(`  ${icon} ${file.path}${binary} ${chalk.gray(size)}`);
@@ -92,8 +131,8 @@ export function printDryRun(result: DryRunResult): void {
   }
 
   // Summary
-  const creates = result.entries.filter(e => e.type === "create").length;
-  const modifies = result.entries.filter(e => e.type === "modify").length;
+  const creates = result.entries.filter((e) => e.type === "create").length;
+  const modifies = result.entries.filter((e) => e.type === "modify").length;
 
   console.log("");
   console.log(chalk.cyan("  Summary:"));
@@ -118,7 +157,7 @@ export function exportDryRunJSON(result: DryRunResult): object {
     total_size: result.totalSize,
     total_size_human: formatSize(result.totalSize),
     directories: result.directories.size,
-    files: result.entries.map(e => ({
+    files: result.entries.map((e) => ({
       action: e.type,
       path: e.path,
       size: e.size,

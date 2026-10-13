@@ -19,11 +19,18 @@ export interface CheckReport {
   score: number;
 }
 
-function check(result: CheckResult[], name: string, status: "pass" | "warn" | "fail", message: string) {
+function check(
+  result: CheckResult[],
+  name: string,
+  status: "pass" | "warn" | "fail",
+  message: string,
+) {
   result.push({ name, status, message });
 }
 
-export async function runGovernanceChecks(projectDir: string): Promise<CheckReport> {
+export async function runGovernanceChecks(
+  projectDir: string,
+): Promise<CheckReport> {
   const checks: CheckResult[] = [];
   let template: string | null = null;
   let templateVersion: string | null = null;
@@ -33,21 +40,38 @@ export async function runGovernanceChecks(projectDir: string): Promise<CheckRepo
   if (lock) {
     template = lock.template.name;
     templateVersion = lock.template.version;
-    check(checks, "Scaffold Lock", "pass", `Tracked: ${lock.template.name}@${lock.template.version}`);
+    check(
+      checks,
+      "Scaffold Lock",
+      "pass",
+      `Tracked: ${lock.template.name}@${lock.template.version}`,
+    );
   } else {
-    check(checks, "Scaffold Lock", "warn", "No .scaffold-lock.yaml found — project not tracked by Forgix");
+    check(
+      checks,
+      "Scaffold Lock",
+      "warn",
+      "No .scaffold-lock.yaml found — project not tracked by Forgix",
+    );
   }
 
   // 2. Git repository
   if (fs.existsSync(path.join(projectDir, ".git"))) {
     check(checks, "Git Repository", "pass", "Initialized");
   } else {
-    check(checks, "Git Repository", "warn", "No .git directory — version control not initialized");
+    check(
+      checks,
+      "Git Repository",
+      "warn",
+      "No .git directory — version control not initialized",
+    );
   }
 
   // 3. License file
   const licenseFiles = ["LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE"];
-  const hasLicense = licenseFiles.some(f => fs.existsSync(path.join(projectDir, f)));
+  const hasLicense = licenseFiles.some((f) =>
+    fs.existsSync(path.join(projectDir, f)),
+  );
   if (hasLicense) {
     check(checks, "License File", "pass", "Present");
   } else {
@@ -65,7 +89,12 @@ export async function runGovernanceChecks(projectDir: string): Promise<CheckRepo
   if (fs.existsSync(path.join(projectDir, ".gitignore"))) {
     check(checks, ".gitignore", "pass", "Present");
   } else {
-    check(checks, ".gitignore", "warn", "No .gitignore — node_modules and secrets may be committed");
+    check(
+      checks,
+      ".gitignore",
+      "warn",
+      "No .gitignore — node_modules and secrets may be committed",
+    );
   }
 
   // 6. Node.js checks
@@ -75,36 +104,66 @@ export async function runGovernanceChecks(projectDir: string): Promise<CheckRepo
 
     // package.json metadata
     if (pkg.name && pkg.version && pkg.description) {
-      check(checks, "Package Metadata", "pass", "name, version, description present");
+      check(
+        checks,
+        "Package Metadata",
+        "pass",
+        "name, version, description present",
+      );
     } else {
       const missing = [];
       if (!pkg.name) missing.push("name");
       if (!pkg.version) missing.push("version");
       if (!pkg.description) missing.push("description");
-      check(checks, "Package Metadata", "warn", `Missing: ${missing.join(", ")}`);
+      check(
+        checks,
+        "Package Metadata",
+        "warn",
+        `Missing: ${missing.join(", ")}`,
+      );
     }
 
     // Lock file
     const lockFiles = ["package-lock.json", "yarn.lock", "pnpm-lock.yaml"];
-    const hasLock = lockFiles.some(f => fs.existsSync(path.join(projectDir, f)));
+    const hasLock = lockFiles.some((f) =>
+      fs.existsSync(path.join(projectDir, f)),
+    );
     if (hasLock) {
       check(checks, "Dependency Lock", "pass", "Lock file present");
     } else {
-      check(checks, "Dependency Lock", "fail", "No lock file — dependencies are not pinned");
+      check(
+        checks,
+        "Dependency Lock",
+        "fail",
+        "No lock file — dependencies are not pinned",
+      );
     }
 
     // Security: no postinstall scripts
     const scripts = pkg.scripts || {};
     const dangerousScripts = ["preinstall", "install", "postinstall"];
-    const foundDangerous = dangerousScripts.filter(s => scripts[s]);
+    const foundDangerous = dangerousScripts.filter((s) => scripts[s]);
     if (foundDangerous.length === 0) {
-      check(checks, "Install Scripts", "pass", "No preinstall/install/postinstall scripts");
+      check(
+        checks,
+        "Install Scripts",
+        "pass",
+        "No preinstall/install/postinstall scripts",
+      );
     } else {
-      check(checks, "Install Scripts", "warn", `Found: ${foundDangerous.join(", ")} — review for supply chain risk`);
+      check(
+        checks,
+        "Install Scripts",
+        "warn",
+        `Found: ${foundDangerous.join(", ")} — review for supply chain risk`,
+      );
     }
 
     // Test script
-    if (scripts.test && scripts.test !== 'echo "Error: no test specified" && exit 1') {
+    if (
+      scripts.test &&
+      scripts.test !== 'echo "Error: no test specified" && exit 1'
+    ) {
       check(checks, "Test Script", "pass", `Configured: ${scripts.test}`);
     } else {
       check(checks, "Test Script", "warn", "No test script configured");
@@ -117,20 +176,34 @@ export async function runGovernanceChecks(projectDir: string): Promise<CheckRepo
       if (gitignore.includes("node_modules")) {
         check(checks, "node_modules Excluded", "pass", "Listed in .gitignore");
       } else {
-        check(checks, "node_modules Excluded", "fail", "node_modules not in .gitignore — will be committed");
+        check(
+          checks,
+          "node_modules Excluded",
+          "fail",
+          "node_modules not in .gitignore — will be committed",
+        );
       }
     }
   }
 
   // 7. Environment files
   const envFiles = [".env", ".env.local", ".env.production"];
-  const foundEnv = envFiles.filter(f => fs.existsSync(path.join(projectDir, f)));
+  const foundEnv = envFiles.filter((f) =>
+    fs.existsSync(path.join(projectDir, f)),
+  );
   if (foundEnv.length > 0) {
     const gitignorePath = path.join(projectDir, ".gitignore");
-    const gitignore = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, "utf-8") : "";
-    const unignored = foundEnv.filter(f => !gitignore.includes(f));
+    const gitignore = fs.existsSync(gitignorePath)
+      ? fs.readFileSync(gitignorePath, "utf-8")
+      : "";
+    const unignored = foundEnv.filter((f) => !gitignore.includes(f));
     if (unignored.length > 0) {
-      check(checks, "Env Files", "fail", `${unignored.join(", ")} not in .gitignore — secrets may leak`);
+      check(
+        checks,
+        "Env Files",
+        "fail",
+        `${unignored.join(", ")} not in .gitignore — secrets may leak`,
+      );
     } else {
       check(checks, "Env Files", "pass", "Environment files excluded from git");
     }
@@ -140,10 +213,19 @@ export async function runGovernanceChecks(projectDir: string): Promise<CheckRepo
 
   // 8. Docker
   if (fs.existsSync(path.join(projectDir, "Dockerfile"))) {
-    const dockerfile = fs.readFileSync(path.join(projectDir, "Dockerfile"), "utf-8");
-    const usesRoot = dockerfile.includes("USER root") || !dockerfile.includes("USER ");
+    const dockerfile = fs.readFileSync(
+      path.join(projectDir, "Dockerfile"),
+      "utf-8",
+    );
+    const usesRoot =
+      dockerfile.includes("USER root") || !dockerfile.includes("USER ");
     if (usesRoot) {
-      check(checks, "Docker", "warn", "Dockerfile may run as root — add a non-root USER directive");
+      check(
+        checks,
+        "Docker",
+        "warn",
+        "Dockerfile may run as root — add a non-root USER directive",
+      );
     } else {
       check(checks, "Docker", "pass", "Dockerfile with non-root user");
     }
@@ -155,7 +237,7 @@ export async function runGovernanceChecks(projectDir: string): Promise<CheckRepo
     path.join(projectDir, ".gitlab-ci.yml"),
     path.join(projectDir, "Jenkinsfile"),
   ];
-  const hasCI = ciDirs.some(p => fs.existsSync(p));
+  const hasCI = ciDirs.some((p) => fs.existsSync(p));
   if (hasCI) {
     check(checks, "CI/CD", "pass", "Pipeline configuration found");
   } else {
@@ -163,7 +245,13 @@ export async function runGovernanceChecks(projectDir: string): Promise<CheckRepo
   }
 
   // 10. Security: no hardcoded secrets (basic check)
-  const sensitivePatterns = ["password", "secret_key", "api_key", "private_key", "AWS_SECRET"];
+  const sensitivePatterns = [
+    "password",
+    "secret_key",
+    "api_key",
+    "private_key",
+    "AWS_SECRET",
+  ];
   let foundSecrets = false;
   if (fs.existsSync(pkgPath)) {
     const pkgStr = JSON.stringify(fs.readJsonSync(pkgPath));
@@ -175,13 +263,23 @@ export async function runGovernanceChecks(projectDir: string): Promise<CheckRepo
     }
   }
   if (foundSecrets) {
-    check(checks, "Hardcoded Secrets", "fail", "Potential secrets found in package.json");
+    check(
+      checks,
+      "Package Secret Keywords",
+      "fail",
+      "Potential secret keywords found in package.json",
+    );
   } else {
-    check(checks, "Hardcoded Secrets", "pass", "No obvious secrets detected");
+    check(
+      checks,
+      "Package Secret Keywords",
+      "pass",
+      "No secret keywords in package.json; source files were not scanned",
+    );
   }
 
   // Score
-  const passCount = checks.filter(c => c.status === "pass").length;
+  const passCount = checks.filter((c) => c.status === "pass").length;
   const score = Math.round((passCount / checks.length) * 100);
 
   return { projectDir, template, templateVersion, checks, score };
@@ -191,19 +289,32 @@ export function printCheckReport(report: CheckReport): void {
   console.log(chalk.cyan("\n  Forgix Governance Check\n"));
   console.log(chalk.gray(`  Project: ${report.projectDir}`));
   if (report.template) {
-    console.log(chalk.gray(`  Template: ${report.template}@${report.templateVersion}`));
+    console.log(
+      chalk.gray(`  Template: ${report.template}@${report.templateVersion}`),
+    );
   }
   console.log("");
 
   for (const c of report.checks) {
-    const icon = c.status === "pass" ? chalk.green("✔") :
-                 c.status === "warn" ? chalk.yellow("⚠") : chalk.red("✘");
+    const icon =
+      c.status === "pass"
+        ? chalk.green("✔")
+        : c.status === "warn"
+          ? chalk.yellow("⚠")
+          : chalk.red("✘");
     console.log(`  ${icon} ${c.name.padEnd(25)} ${chalk.gray(c.message)}`);
   }
 
   console.log("");
-  const scoreColor = report.score >= 80 ? chalk.green : report.score >= 60 ? chalk.yellow : chalk.red;
-  console.log(`  Score: ${scoreColor(`${report.score}%`)} (${report.checks.filter(c => c.status === "pass").length}/${report.checks.length} checks passed)`);
+  const scoreColor =
+    report.score >= 80
+      ? chalk.green
+      : report.score >= 60
+        ? chalk.yellow
+        : chalk.red;
+  console.log(
+    `  Score: ${scoreColor(`${report.score}%`)} (${report.checks.filter((c) => c.status === "pass").length}/${report.checks.length} checks passed)`,
+  );
   console.log("");
 }
 
@@ -213,7 +324,7 @@ export function exportCheckJSON(report: CheckReport): object {
     template: report.template,
     template_version: report.templateVersion,
     score: report.score,
-    checks: report.checks.map(c => ({
+    checks: report.checks.map((c) => ({
       name: c.name,
       status: c.status,
       message: c.message,
