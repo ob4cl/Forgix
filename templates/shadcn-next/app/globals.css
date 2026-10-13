@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: #ffffff;
+  --color-foreground: #172033;
+  --color-primary: #243d8f;
+  --color-primary-foreground: #ffffff;
+  --color-accent: #e9eef8;
+  --color-accent-foreground: #172033;
+  --color-input: #c4cfe1;
+  --color-ring: #4361ee;
+}
+
+ :root { font-family: system-ui, sans-serif; color: #172033; background: #f5f7fb; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(100% - 2rem, 44rem); margin: 12vh auto; padding: clamp(1.5rem, 5vw, 3rem); background: white; border: 1px solid #dbe2ee; border-radius: 1.25rem; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.1; }
+p { line-height: 1.6; }
+.eyebrow { color: #485a79; font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; gap: .75rem; }

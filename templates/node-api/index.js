@@ -1,12 +1,10 @@
-import express from 'express';
+import app from './app.js';
 
-const app = express();
-const port = 3000;
-
-app.get('/', (req, res) => {
-  res.send('Welcome to {{projectName}}! Scaffolded by Forgix.');
-});
-
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+const port = Number(process.env.PORT || 3000);
+const host = process.env.HOST || '127.0.0.1';
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  throw new Error('PORT must be an integer between 1 and 65535');
+}
+app.listen(port, host, () => {
+  console.log(`API listening on http://${host}:${port}`);
 });

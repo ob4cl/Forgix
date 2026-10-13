@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.next/
+coverage/
+.venv/
+package-lock.json
+.scaffold-lock.yaml
