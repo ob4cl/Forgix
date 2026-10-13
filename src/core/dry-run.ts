@@ -56,7 +56,20 @@ export function scanTemplate(
       )
         continue;
 
-      const relPath = rel ? `${rel}/${entry.name}` : entry.name;
+      if (
+        entry.name === "_gitignore" &&
+        fs.existsSync(path.join(src, ".gitignore"))
+      ) {
+        if (
+          !fs
+            .readFileSync(path.join(src, "_gitignore"))
+            .equals(fs.readFileSync(path.join(src, ".gitignore")))
+        )
+          throw new Error("Conflicting ignore assets.");
+        continue;
+      }
+      const name = entry.name === "_gitignore" ? ".gitignore" : entry.name;
+      const relPath = rel ? `${rel}/${name}` : name;
       const fullPath = path.join(src, entry.name);
 
       if (entry.isDirectory()) {

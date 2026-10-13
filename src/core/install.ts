@@ -22,7 +22,14 @@ export async function installDependencies(
     case "npm":
     default:
       command = "npm";
-      args = ["install"];
+      args = [
+        "install",
+        "--prefix",
+        dir,
+        "--global=false",
+        "--no-audit",
+        "--no-fund",
+      ];
       break;
   }
 

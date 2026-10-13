@@ -19,7 +19,7 @@ try {
   assert.ok(
     !files.some(
       (f) =>
-        f.includes("tests/") ||
+        f.startsWith("tests/") ||
         f.includes("elite-vue-project") ||
         f.includes("test-speed"),
     ),
@@ -50,6 +50,29 @@ try {
   );
   assert.equal(JSON.parse(created.stdout).status, "created");
   assert.ok(fs.existsSync(path.join(temp, "app", "index.js")));
+  assert.ok(fs.existsSync(path.join(temp, "app", ".gitignore")));
+  assert.ok(!fs.existsSync(path.join(temp, "app", "_gitignore")));
+  assert.ok(fs.existsSync(path.join(temp, "app", "package-lock.json")));
+  assert.ok(fs.existsSync(path.join(temp, "app", "tests/http.test.mjs")));
+  await execa("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund"], {
+    cwd: path.join(temp, "app"),
+  });
+  await execa("npm", ["run", "build"], { cwd: path.join(temp, "app") });
+  await execa("npm", ["test"], { cwd: path.join(temp, "app") });
+  const verifier = process.env.FORGIX_VERIFY_TEMPLATES;
+  if (verifier)
+    await execa(
+      process.env.PYTHON || "python3",
+      [
+        "scripts/verify-templates.py",
+        "--work-dir",
+        path.join(temp, "starters"),
+        "--install",
+        "--cli",
+        installed,
+      ],
+      { stdout: "inherit", stderr: "inherit" },
+    );
   console.log("Packed CLI installs and creates a project successfully.");
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });

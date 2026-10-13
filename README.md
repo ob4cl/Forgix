@@ -2,7 +2,7 @@
 
 A TypeScript CLI for creating projects from reusable local templates or trusted GitHub repositories.
 
-Forgix copies a template, replaces known variables, optionally installs Node dependencies, and records the template origin in `.scaffold-lock.yaml`. It is an early-stage portfolio project: the CLI has regression coverage; the bundled starter collection is being repaired and verified separately.
+Forgix copies a template, replaces known variables, optionally installs Node dependencies, and records the template origin in `.scaffold-lock.yaml`. It is an early-stage portfolio project with CLI regression coverage and minimal, tested starter applications.
 
 ## Run from source
 
@@ -39,6 +39,25 @@ Known placeholders in text files: `{{projectName}}`, `{{author}}`, `{{license}}`
 
 Templates may include `template.yaml` with `name` and `version`. The scaffold lock records that version and generated file names; it does not implement upgrades or verify file integrity.
 
+## Built-in starters
+
+| Template        | Stack                                                        |
+| --------------- | ------------------------------------------------------------ |
+| `react-vite`    | React 19 + Vite 8, JavaScript                                |
+| `react-vite-ts` | React 19 + Vite 8, TypeScript                                |
+| `vue-app`       | Vue 3 + Vite 8, typed components                             |
+| `svelte`        | Svelte 5 + Vite 8                                            |
+| `nextjs`        | Next.js 16 App Router + React 19                             |
+| `shadcn-next`   | Next.js 16 + Tailwind 4 + local editable shadcn-style Button |
+| `node-api`      | Express 5 JSON API                                           |
+| `express-ts`    | Express 5 + strict NodeNext TypeScript                       |
+| `python-script` | Dependency-free argparse script                              |
+| `fastapi`       | FastAPI application with HTTP/OpenAPI tests                  |
+
+Each starter includes its own README and tests. Node starters ship npm lockfiles and pinned direct dependencies. The CLI automatically materializes pack-safe `_gitignore` assets as `.gitignore`, preserving matching source ignore files and rejecting conflicts. The fallback name is removed from generated output.
+
+Plugin files provide explicit setup guidance and scoped assets. Docker supports the two Express starters; other plugins require manual dependency and framework integration. A copied plugin does not establish application test coverage.
+
 ## Commands
 
 | Command                                          | Behavior                                                                 |
@@ -73,7 +92,7 @@ Composition is a small file overlay feature: `composition.yaml` specifies a `bas
 
 ## Limitations
 
-The bundled templates and plugins need their separate verification pass before they should be described as production-ready. Run `list` to inspect available names. The `check` command is a heuristic checklist, not a security audit: its secret-keyword check examines package.json only, and its ignore-file checks do not evaluate Git's full ignore semantics. Dependencies and templates still require review. Python dependencies are not installed automatically.
+The starters are deliberately small applications, not production systems. Frontend state is in memory; authentication, persistence and deployment are left to the application owner. Python dependency installation is manual. The `check` command is a heuristic checklist, not a security audit: its secret-keyword check examines package.json only, and its ignore-file checks do not evaluate Git's full ignore semantics. Dependencies and templates still require review. Python dependencies are not installed automatically.
 
 ## Development
 
@@ -84,8 +103,21 @@ npm run test:package
 npm run format:check
 ```
 
-Tests exercise output parsing, destination preservation, name/path boundaries, hook behavior, variable replacement, and template provenance. CI runs CLI checks on Windows and Linux with Node 22 and 24. See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [AGENT.md](AGENT.md).
+Tests exercise output parsing, destination preservation, name/path boundaries, hook behavior, variable replacement, and template provenance. CI runs CLI checks on Windows and Linux with Node 22, 24 and 26, and verifies all ten installed-package starters on Linux with Node 22 and 24. See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [AGENT.md](AGENT.md).
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Verify generated starters
+
+The complete check needs Python 3.10+, uv, Node and npm. Python 3.12 is used for the isolated FastAPI environment.
+
+```sh
+python -m unittest discover -s tests/templates -v
+python scripts/verify-templates.py --work-dir ./work/starter-check --install --cli bin/forgix.js
+python scripts/verify-plugins.py --work-dir ./work/plugin-check --cli bin/forgix.js
+FORGIX_VERIFY_TEMPLATES=1 npm run test:package
+```
+
+Choose fresh, nonexistent work directories. The last command checks all ten starters through the installed tarball, without manual ignore-file repair. On PowerShell, set `$env:FORGIX_VERIFY_TEMPLATES='1'` before the npm command. See [scripts/README.md](scripts/README.md) and [templates/VERIFICATION.md](templates/VERIFICATION.md) for methods and platform limits. Historical verification evidence is distinguished from current CI results.

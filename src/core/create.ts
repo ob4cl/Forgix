@@ -1,4 +1,5 @@
 import fs from "fs-extra";
+import { materializeIgnoreAssets } from "./ignore-assets.js";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
@@ -147,6 +148,7 @@ export async function runCreate(options: CreateOptions) {
       applyLayer(layer.path, target, layer.layer.conflicts);
     for (const plugin of pluginPaths)
       fs.copySync(plugin, target, { overwrite: false, errorOnExist: true });
+    materializeIgnoreAssets(target);
     await replaceVariablesInDir(target, vars);
     const hooks = loadHooks(source);
     const hooksRan: string[] = [];

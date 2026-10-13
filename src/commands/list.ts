@@ -17,11 +17,17 @@ export const listCommand = new Command("list")
     const linksPath = path.join(os.homedir(), ".forgix-links.json");
 
     const templates = fs.existsSync(templatesPath)
-      ? fs.readdirSync(templatesPath)
+      ? fs
+          .readdirSync(templatesPath, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => entry.name)
       : [];
 
     const plugins = fs.existsSync(pluginsPath)
-      ? fs.readdirSync(pluginsPath)
+      ? fs
+          .readdirSync(pluginsPath, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => entry.name)
       : [];
 
     let customLinks: Record<string, string> = {};

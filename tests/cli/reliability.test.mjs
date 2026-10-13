@@ -283,3 +283,64 @@ test("plugin collisions preserve existing files and fail", (t) => {
     "original",
   );
 });
+
+test("pack-safe ignore assets materialize once and appear correctly in preview", (t) => {
+  const { run, dir, template } = sandbox(t);
+  fs.writeFileSync(path.join(template, "_gitignore"), "node_modules/\n");
+  const preview = run("create", "preview", "-t", "fixture", "--dry-run");
+  assert.equal(preview.status, 0, preview.stderr);
+  const names = JSON.parse(preview.stdout).files.map((f) => f.path);
+  assert.ok(names.includes(".gitignore"));
+  assert.ok(!names.includes("_gitignore"));
+  const created = run("create", "app", "-t", "fixture", "--skip-install");
+  assert.equal(created.status, 0, created.stderr);
+  assert.equal(
+    fs.readFileSync(path.join(dir, "app/.gitignore"), "utf8"),
+    "node_modules/\n",
+  );
+  assert.equal(fs.existsSync(path.join(dir, "app/_gitignore")), false);
+});
+
+test("conflicting ignore assets never overwrite the existing ignore file", (t) => {
+  const { run, dir, template } = sandbox(t);
+  fs.writeFileSync(path.join(template, "_gitignore"), "fallback");
+  fs.writeFileSync(path.join(template, ".gitignore"), "original");
+  const created = run("create", "app", "-t", "fixture", "--skip-install");
+  assert.notEqual(created.status, 0);
+  assert.equal(
+    fs.readFileSync(path.join(dir, "app/.gitignore"), "utf8"),
+    "original",
+  );
+});
+
+test("npm lifecycle prefix and global defaults cannot redirect the project install", (t) => {
+  const { dir, home, template } = sandbox(t);
+  const other = path.join(dir, "other");
+  fs.mkdirSync(other);
+  fs.writeFileSync(
+    path.join(template, "package.json"),
+    JSON.stringify({ name: "fixture", version: "1.0.0", private: true }),
+  );
+  const result = spawnSync(
+    process.execPath,
+    [cli, "create", "app", "-t", "fixture", "-n"],
+    {
+      cwd: dir,
+      encoding: "utf8",
+      timeout: 60000,
+      env: {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        INIT_CWD: other,
+        npm_config_prefix: other,
+        npm_config_local_prefix: other,
+        npm_config_global: "true",
+        npm_package_json: path.join(other, "package.json"),
+      },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(fs.existsSync(path.join(dir, "app/package-lock.json")));
+  assert.deepEqual(fs.readdirSync(other), []);
+});
