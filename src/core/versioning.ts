@@ -43,7 +43,9 @@ export interface TemplateManifest {
 const LOCK_FILE = ".scaffold-lock.yaml";
 const MANIFEST_FILE = "template.yaml";
 
-export function loadTemplateManifest(templatePath: string): TemplateManifest | null {
+export function loadTemplateManifest(
+  templatePath: string,
+): TemplateManifest | null {
   const manifestPath = path.join(templatePath, MANIFEST_FILE);
   if (!fs.existsSync(manifestPath)) return null;
 
@@ -55,10 +57,7 @@ export function loadTemplateManifest(templatePath: string): TemplateManifest | n
   }
 }
 
-export function writeLockFile(
-  targetDir: string,
-  lock: ScaffoldLock
-): void {
+export function writeLockFile(targetDir: string, lock: ScaffoldLock): void {
   const lockPath = path.join(targetDir, LOCK_FILE);
   const content = YAML.stringify(lock, { lineWidth: 120 });
   fs.writeFileSync(lockPath, content);
@@ -82,7 +81,12 @@ export function collectGeneratedFiles(targetDir: string): string[] {
   function walk(dir: string, prefix: string = "") {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
-      if (entry.name === "node_modules" || entry.name === ".git" || entry.name === ".scaffold-lock.yaml") continue;
+      if (
+        entry.name === "node_modules" ||
+        entry.name === ".git" ||
+        entry.name === ".scaffold-lock.yaml"
+      )
+        continue;
       const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
         walk(path.join(dir, entry.name), relPath);
@@ -103,7 +107,7 @@ export function createLockFile(
   targetDir: string,
   variables: Record<string, string>,
   hooksRan: string[] = [],
-  registry?: string
+  registry?: string,
 ): ScaffoldLock {
   const lock: ScaffoldLock = {
     template: {

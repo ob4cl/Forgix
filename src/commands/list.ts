@@ -16,12 +16,12 @@ export const listCommand = new Command("list")
     const pluginsPath = path.join(__dirname, "../../plugins");
     const linksPath = path.join(os.homedir(), ".forgix-links.json");
 
-    const templates = fs.existsSync(templatesPath) 
-      ? fs.readdirSync(templatesPath) 
+    const templates = fs.existsSync(templatesPath)
+      ? fs.readdirSync(templatesPath)
       : [];
-    
-    const plugins = fs.existsSync(pluginsPath) 
-      ? fs.readdirSync(pluginsPath) 
+
+    const plugins = fs.existsSync(pluginsPath)
+      ? fs.readdirSync(pluginsPath)
       : [];
 
     let customLinks: Record<string, string> = {};
@@ -35,20 +35,26 @@ export const listCommand = new Command("list")
 
     if (options.json) {
       // Machine-readable JSON output for agents
-      console.log(JSON.stringify({
-        templates,
-        plugins,
-        customLinks
-      }, null, 2));
+      process.stdout.write(
+        JSON.stringify(
+          {
+            templates,
+            plugins,
+            customLinks,
+          },
+          null,
+          2,
+        ) + "\n",
+      );
       return;
     }
 
     // Human-readable output
     console.log(chalk.cyan("\n📋 Available Project Templates:"));
-    templates.forEach(t => console.log(`  - ${t}`));
+    templates.forEach((t) => console.log(`  - ${t}`));
 
     console.log(chalk.magenta("\n🧩 Available Plugins:"));
-    plugins.forEach(p => console.log(`  - ${p}`));
+    plugins.forEach((p) => console.log(`  - ${p}`));
 
     if (Object.keys(customLinks).length > 0) {
       console.log(chalk.yellow("\n🔗 Linked Custom Templates:"));
@@ -57,6 +63,12 @@ export const listCommand = new Command("list")
       });
     }
 
-    console.log(chalk.gray("\n💡 Use 'forgix create --template <name>' to start a new project."));
-    console.log(chalk.gray("💡 Use 'forgix add <plugin>' inside an existing project.\n"));
+    console.log(
+      chalk.gray(
+        "\n💡 Use 'forgix create --template <name>' to start a new project.",
+      ),
+    );
+    console.log(
+      chalk.gray("💡 Use 'forgix add <plugin>' inside an existing project.\n"),
+    );
   });

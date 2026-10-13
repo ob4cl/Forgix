@@ -1,413 +1,91 @@
 # Forgix
 
-CLI project scaffolding tool with template versioning, post-scaffold hooks, governance checks, registry support, and composition. Generates production-ready project structures with lifecycle management.
+A TypeScript CLI for creating projects from reusable local templates or trusted GitHub repositories.
 
-```
-npm install -g @fourlinx/forgix
-# or use without installing
-npx @fourlinx/forgix create my-app --template react-vite --ts --ci --docker
-```
+Forgix copies a template, replaces known variables, optionally installs Node dependencies, and records the template origin in `.scaffold-lock.yaml`. It is an early-stage portfolio project: the CLI has regression coverage; the bundled starter collection is being repaired and verified separately.
 
-## What It Does
+## Run from source
 
-Forgix copies a template into a new directory, injects variables, runs your package manager's install, executes post-scaffold hooks, and writes a `.scaffold-lock.yaml` tracking the template version. Optionally initializes git, CI, linting, testing, and Docker — in one command.
+Requires Node.js 22.13 or newer and npm. Git is optional for local templates and required for remote repositories or `--git`.
 
-For CI/CD pipelines, it runs non-interactively when all required flags are provided.
-
-## Install
-
-```bash
-npm install -g @fourlinx/forgix
-# or
-npx @fourlinx/forgix create
+```sh
+git clone https://github.com/ob4cl/Forgix.git
+cd Forgix
+npm ci --ignore-scripts
+npm test
+node bin/forgix.js list --json
+node bin/forgix.js create my-api --template node-api --skip-install -n
 ```
 
-Requires: Node.js >= 22, Git (optional, for `--git` and remote templates).
+Install a local package if you want the `forgix` command:
 
-Verify setup:
-```bash
-forgix doctor
+```sh
+npm pack
+npm install -g ./forgix-1.1.0.tgz
+forgix --help
 ```
+
+These instructions use the repository's package name. Registry publication is not required and no published package is assumed.
+
+## Reuse your own template
+
+```sh
+forgix link my-service ./path/to/template
+forgix create my-service-app -t my-service --dry-run -n
+forgix create my-service-app -t my-service --skip-install -n
+```
+
+Known placeholders in text files: `{{projectName}}`, `{{author}}`, `{{license}}`. Unknown placeholders are preserved. Git metadata and node_modules are excluded from copies; symbolic links are rejected. Template metadata files are not copied into generated applications.
+
+Templates may include `template.yaml` with `name` and `version`. The scaffold lock records that version and generated file names; it does not implement upgrades or verify file integrity.
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `forgix create` | Scaffold a new project |
-| `forgix check` | Audit project for governance, security, best practices |
-| `forgix registry` | Manage template registries (npm-based) |
-| `forgix config` | Set global defaults |
-| `forgix doctor` | Check Node, Git, npm, VS Code availability |
-| `forgix list` | List templates, plugins, linked templates |
-| `forgix add <plugin>` | Inject a plugin into existing project |
-| `forgix link <name> [path]` | Register a local folder as named template |
+| Command                                          | Behavior                                                                 |
+| ------------------------------------------------ | ------------------------------------------------------------------------ |
+| `create [name] -t <template>`                    | Copy a built-in or linked template                                       |
+| `create app -t github:owner/repo --trust-remote` | Clone a trusted repository; Git credentials come from your own Git setup |
+| `list --json`                                    | List bundled templates, plugin directories and local links               |
+| `link <name> [path]`                             | Register a local directory                                               |
+| `add <plugin>`                                   | Copy plugin files into the current directory; collisions fail            |
+| `config --json`                                  | Show defaults                                                            |
+| `config --set key=value`                         | Change defaults                                                          |
+| `doctor --json`                                  | Report available tools without installing anything                       |
+| `check . --json`                                 | Run a limited project hygiene checklist                                  |
 
-## Usage
+`create` options: `--skip-install`, `--pm npm|yarn|pnpm`, `--author`, `--license`, `--git`, `--open`, `--plugins <names...>`, `--dry-run`, `--layers <names...>`, `--trust-remote`, `--allow-hooks`, `--allow-scripts`, and `-n`/`--non-interactive`.
 
-```
-forgix create [name] [options]
-```
+Choose a template that already contains the desired framework and tooling. The former generic TypeScript, CSS, Docker, lint, test, and CI shortcut flags have been removed because they did not reliably integrate those tools. Plugins copy files; they do not automatically modify dependencies. Registry commands are excluded from the supported CLI until their creation path is implemented.
 
-If `name` or `--template` is omitted, Forgix prompts interactively.
+## Execution and output
 
-### Flags
+- Git initialization is opt-in and does not create a commit or alter your Git identity.
+- Dependency installation suppresses lifecycle scripts unless `--allow-scripts` is provided. Some dependencies require scripts; review them before enabling this option.
+- Hooks are skipped unless `--allow-hooks` is provided. Hooks execute reviewed shell commands through `sh`, which must be installed. This is not a sandbox.
+- Hook variables are environment values: `FORGIX_PROJECT_NAME`, `FORGIX_AUTHOR`, and `FORGIX_LICENSE`. They are not interpolated into shell source.
+- Blocking hook failures fail creation. Only successful hooks are recorded. Background hooks are unsupported.
+- Remote sources require explicit trust in non-interactive mode. Authentication is delegated to Git; never embed tokens in template URLs.
+- A base-template dry run does not create the destination or run installation/hooks. Remote previews and previews with layers/plugins are explicitly unsupported.
+- JSON commands write one JSON document to stdout. Diagnostics go to stderr in machine mode. Non-TTY create automatically uses non-interactive mode; `FORGIX_NON_INTERACTIVE=1` also enables it.
+- Failures leave partial output available for inspection and return a nonzero exit status. Existing project directories are never overwritten.
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-t, --template <name>` | (prompt) | Template to scaffold from |
-| `--pm <npm\|yarn\|pnpm>` | `npm` | Package manager for install |
-| `--ts` | off | Use TypeScript |
-| `--css <tailwind\|sass>` | off | CSS framework |
-| `--docker` | off | Generate Dockerfile + docker-compose.yml |
-| `--eslint` | off | Add ESLint configuration |
-| `--prettier` | off | Add Prettier configuration |
-| `--test` | off | Add Jest test setup |
-| `--ci` | off | Add GitHub Actions workflow |
-| `--git` | off | `git init` + initial commit |
-| `--open` | off | Open in VS Code |
-| `--skip-install` | off | Skip `npm install` |
-| `--dry-run` | off | Preview files without creating anything |
-| `--layers <names...>` | off | Apply composition layers |
-| `-n, --non-interactive` | off | Skip prompts, use defaults |
-| `--trust-remote` | off | Auto-accept remote template clones |
-| `-a, --author <name>` | Developer | Author name |
-| `-l, --license <type>` | MIT | License type |
-| `-p, --plugins <names...>` | [] | Plugins to inject |
+Composition is a small file overlay feature: `composition.yaml` specifies a `base` directory and named `layers` with `path` and `conflicts: overwrite|skip`. Paths must remain inside the template. Merge mode is unsupported.
 
-### Examples
+## Limitations
 
-```bash
-# Interactive
-forgix create
+The bundled templates and plugins need their separate verification pass before they should be described as production-ready. Run `list` to inspect available names. The `check` command is a heuristic checklist, not a security audit: its secret-keyword check examines package.json only, and its ignore-file checks do not evaluate Git's full ignore semantics. Dependencies and templates still require review. Python dependencies are not installed automatically.
 
-# Non-interactive, full stack
-forgix create my-app -t react-vite-ts --pm pnpm --ts --eslint --prettier --test --ci --docker --git
+## Development
 
-# Preview what would be created
-forgix create my-app -t react-vite --dry-run
-
-# From a GitHub repo
-forgix create my-app -t github:user/repo --trust-remote
-
-# With composition layers
-forgix create my-app -t my-base --layers auth database testing
+```sh
+npm ci --ignore-scripts
+npm test
+npm run test:package
+npm run format:check
 ```
 
-## Templates
-
-| Template | Stack |
-|----------|-------|
-| `react-vite` | React 18 + Vite |
-| `react-vite-ts` | React 18 + Vite + TypeScript |
-| `shadcn-next` | React + Next.js 14 + shadcn/ui + Tailwind |
-| `vue-app` | Vue 3 + Vite |
-| `nextjs` | Next.js 14 (App Router) |
-| `svelte` | Svelte 4 + Vite |
-| `node-api` | Node.js + Express |
-| `express-ts` | Express + TypeScript |
-| `python-script` | Python script |
-| `fastapi` | FastAPI + Uvicorn |
-| `github:<owner/repo>` | Any public GitHub repository |
-
-## Plugins
-
-```bash
-cd my-app
-forgix add docker
-```
-
-| Plugin | Adds |
-|--------|------|
-| `docker` | Dockerfile + docker-compose.yml |
-| `tailwind` | Tailwind CSS config |
-| `eslint` | ESLint config |
-| `prettier` | Prettier config |
-| `jest` | Jest test setup |
-
-## Post-Scaffold Hooks
-
-Templates can include a `hooks.yaml` that runs scripts after scaffolding.
-
-```yaml
-# hooks.yaml (in template root)
-post_scaffold:
-  - id: init-git
-    name: Initialize Git
-    run: "git init && git add . && git commit -m 'initial'"
-    on_error: warn
-    condition: "not_exists(.git)"
-
-  - id: setup-ci
-    name: Configure CI
-    run: "cp .ci/github-actions.yml .github/workflows/ci.yml"
-
-  - id: notify
-    name: Notify Slack
-    run: "curl -X POST $SLACK_WEBHOOK -d '{\"text\": \"Project created\"}'"
-    on_error: ignore
-    async: true
-```
-
-### Hook Options
-
-| Field | Description |
-|-------|-------------|
-| `id` | Unique identifier |
-| `name` | Display name |
-| `run` | Shell command (supports `{projectName}`, `{author}`, `{license}` vars) |
-| `cwd` | Working directory (relative to project root) |
-| `on_error` | `fail` (default), `warn`, `ignore` |
-| `timeout` | e.g. `30s`, `5m` |
-| `retry` | Number of retries on failure |
-| `condition` | `exists(file)` or `not_exists(file)` |
-| `async` | Run in background without blocking |
-
-## Template Versioning
-
-Every scaffolded project gets a `.scaffold-lock.yaml` tracking its template origin:
-
-```yaml
-template:
-  name: react-vite-ts
-  version: "1.0.0"
-  source: local
-scaffolded_at: "2026-04-18T16:00:00Z"
-engine_version: "1.1.0"
-files_generated:
-  - src/index.ts
-  - package.json
-variables:
-  projectName: my-app
-  author: Developer
-  license: MIT
-hooks_ran:
-  - init-git
-patches_applied: []
-```
-
-Templates can include a `template.yaml` manifest:
-
-```yaml
-# template.yaml
-name: react-vite-ts
-version: "2.1.0"
-description: "React + TypeScript + Vite"
-author: "Team"
-license: MIT
-min_engine_version: "1.1.0"
-hooks: true
-```
-
-## Dry Run Mode
-
-Preview what files would be created without writing anything:
-
-```bash
-forgix create my-app -t react-vite --dry-run
-```
-
-Output (human):
-```
-  Preview — files that would be created/modified:
-
-  src/
-  + src/index.ts 1.2KB
-  + src/App.tsx 0.8KB
-  + package.json 0.5KB
-
-  Summary:
-    + 15 files to create
-    3 directories
-    Total: 12.4KB
-```
-
-Output (JSON, with `-n`):
-```json
-{
-  "total_files": 15,
-  "total_size": 12697,
-  "directories": 3,
-  "files": [{ "action": "create", "path": "src/index.ts", "size": 1234 }]
-}
-```
-
-## Governance Check
-
-Audit any project against best practices:
-
-```bash
-forgix check [dir]
-forgix check . --deps --json
-```
-
-Checks:
-- Scaffold lock file present
-- Git initialized
-- License file exists
-- README present
-- .gitignore configured
-- Package metadata complete
-- Dependency lock file
-- No dangerous install scripts
-- Test script configured
-- node_modules excluded
-- .env files not exposed
-- Dockerfile non-root user
-- CI/CD configured
-- No hardcoded secrets
-
-Scoring: 0-100% based on pass/warn/fail. Exits non-zero if score < 50%.
-
-`--deps` flag adds dependency analysis: deprecated packages, npm audit vulnerabilities, missing lock files.
-
-## Registry
-
-Publish and fetch templates from npm:
-
-```bash
-# Search for templates
-forgix registry search react
-
-# List configured registries
-forgix registry list
-
-# Add a private registry
-forgix registry add company --url https://npm.internal.company.com
-
-# Publish a template
-forgix registry publish ./my-template @company/react-service
-
-# Install from registry (during create)
-forgix create my-app -t @company/react-service
-```
-
-Templates published to npm should include `template.yaml` and use the `forgix-template` keyword.
-
-## Template Composition
-
-Templates can declare layers in `composition.yaml`:
-
-```yaml
-base: base/
-layers:
-  - name: auth
-    path: layers/auth/
-    description: "JWT authentication"
-    conflicts: overwrite
-  - name: database
-    path: layers/database/
-    description: "PostgreSQL + Prisma"
-    conflicts: skip
-  - name: testing
-    path: layers/testing/
-    description: "Jest + Testing Library"
-```
-
-Usage:
-```bash
-forgix create my-app -t my-base --layers auth testing
-```
-
-## Configuration
-
-Set persistent defaults via `forgix config`:
-
-```bash
-forgix config
-```
-
-Config file: `~/.forgix-config.json` (permissions: `0600`)
-
-Options: default template, package manager, author name, license, and auto-apply flags (`--git`, `--open`, `--eslint`, etc.).
-
-### Custom Templates
-
-Link a local directory as a named template:
-
-```bash
-forgix link my-org-template ./path/to/template
-forgix create my-app -t my-org-template
-```
-
-Links stored in: `~/.forgix-links.json`
-
-## Template Variables
-
-Files in templates can contain these placeholders, replaced at scaffold time:
-
-| Placeholder | Value |
-|-------------|-------|
-| `{{projectName}}` | Project directory name |
-| `{{author}}` | From CLI prompt or `forgix config` |
-| `{{license}}` | From CLI prompt or `forgix config` |
-
-Binary files (images, archives, etc.) are skipped automatically.
-
-## Security Model
-
-| Concern | Mitigation |
-|---------|------------|
-| Remote template trust | Confirmation prompt; `--trust-remote` for CI |
-| `.git` from cloned repos | Removed automatically after clone |
-| `postinstall` scripts | Warning shown; `forgix check` detects |
-| Config file exposure | Written with `0600` permissions (owner-only) |
-| Path traversal | Resolved paths validated; `..` blocked |
-| Sensitive directories | `.ssh`, `.aws`, etc. blocked from linking |
-| Install scripts | `forgix check` flags preinstall/postinstall |
-| Hardcoded secrets | `forgix check` scans for patterns |
-
-## Agent Mode (Non-Interactive)
-
-All commands support non-interactive mode for CI pipelines, scripts, and AI agents.
-
-Set `FORGIX_NON_INTERACTIVE=1` or pass `-n`/`--non-interactive`.
-
-| Command | Flags | Description |
-|---------|-------|-------------|
-| `forgix config --show` | | Display current config |
-| `forgix config --json` | | Output config as JSON |
-| `forgix config --set key=value` | | Set values non-interactively |
-| `forgix list --json` | | List templates/plugins as JSON |
-| `forgix doctor --fix` | | Auto-fix issues without prompting |
-| `forgix doctor -n` | | Report only, no prompts |
-| `forgix check --json` | | Audit results as JSON |
-| `forgix check . --deps --json` | | Full audit with dependency analysis |
-| `forgix registry search <query>` | | Search npm for templates |
-
-`forgix create --non-interactive` outputs a JSON summary on success.
-
-Full reference: see [AGENT.md](./AGENT.md).
-
-## Architecture
-
-```
-src/
-  cli/index.ts          Entry point, command registration
-  commands/
-    create.ts           Interactive create flow (prompts + flags)
-    add.ts              Plugin injection
-    config.ts           Profile configuration
-    check.ts            Governance audit command
-    doctor.ts           System health checks
-    registry.ts         Registry management
-    list.ts             Template/plugin listing
-    link.ts             Custom template registration
-  core/
-    create.ts           Template copy, variable injection, hooks, lock file
-    hooks.ts            Post-scaffold hook execution engine
-    versioning.ts       Template manifest + .scaffold-lock.yaml
-    dry-run.ts          Preview mode file scanner
-    composition.ts      Template layer system
-    registry.ts         npm publish/install for templates
-    check.ts            Governance checks (security, best practices)
-    deps-intel.ts       Dependency analysis (deprecated, vulnerable)
-    install.ts          Package manager abstraction
-    template-engine.ts  Recursive {{variable}} replacement
-    config.ts           Read/write ~/.forgix-config.json
-templates/              Built-in project templates
-plugins/                Injectable feature modules
-```
+Tests exercise output parsing, destination preservation, name/path boundaries, hook behavior, variable replacement, and template provenance. CI runs CLI checks on Windows and Linux with Node 22 and 24. See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [AGENT.md](AGENT.md).
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

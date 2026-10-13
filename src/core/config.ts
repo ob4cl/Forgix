@@ -18,10 +18,10 @@ const defaultConfig: ForgixConfig = {
   defaultAuthor: "Developer",
   defaultLicense: "MIT",
   preferredEditor: "code",
-  autoGit: true,
+  autoGit: false,
   defaultTemplate: "react-vite",
   defaultPackageManager: "npm",
-  defaultFlags: []
+  defaultFlags: [],
 };
 
 export async function getConfig(): Promise<ForgixConfig> {

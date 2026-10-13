@@ -1,8 +1,8 @@
 {
   "name": "forgix",
   "version": "1.1.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Scaffold reusable project templates with explicit trust and execution controls.",
+  "main": "dist/cli/index.js",
   "files": [
     "dist",
     "bin",
@@ -15,14 +15,24 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "npm run build && node ./bin/forgix.js"
+    "dev": "npm run build && node ./bin/forgix.js",
+    "test": "npm run build && node --test tests/cli/*.test.mjs",
+    "prepack": "npm run build",
+    "format": "prettier --write src tests/cli tests/package-smoke.mjs *.md package.json .github",
+    "format:check": "prettier --check src tests/cli tests/package-smoke.mjs *.md package.json .github",
+    "test:package": "node tests/package-smoke.mjs"
   },
-  "keywords": [],
-  "author": "Tyler <admirableowl819@gmail.com>",
+  "keywords": [
+    "scaffolding",
+    "templates",
+    "cli"
+  ],
+  "author": "Forgix contributors",
   "license": "MIT",
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^25.6.0",
+    "prettier": "3.9.10",
     "typescript": "^6.0.3"
   },
   "dependencies": {
@@ -33,5 +43,16 @@
     "fs-extra": "^11.3.4",
     "ora": "^9.3.0",
     "yaml": "^2.8.3"
-  }
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ob4cl/Forgix.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ob4cl/Forgix/issues"
+  },
+  "homepage": "https://github.com/ob4cl/Forgix#readme"
 }

@@ -14,28 +14,49 @@ const __dirname = path.dirname(__filename);
 export const createCommand = new Command("create")
   .description("Scaffold a new project")
   .argument("[name]", "Name of your project")
-  .option("-t, --template <type>", "Template to use (react-vite, vue-app, node-api, python-script, nextjs, express, svelte, shadcn-next, express-ts, react-vite-ts, fastapi)")
+  .option(
+    "-t, --template <type>",
+    "Template to use (react-vite, vue-app, node-api, python-script, nextjs, express, svelte, shadcn-next, express-ts, react-vite-ts, fastapi)",
+  )
   .option("--skip-install", "Skip dependency installation")
   .option("--git", "Initialize a git repository")
   .option("--open", "Open the project in VS Code")
-  .option("--pm, --package-manager <pm>", "Package manager to use (npm, yarn, pnpm)", "npm")
-  .option("--ts, --typescript", "Use TypeScript")
-  .option("--js, --javascript", "Use JavaScript (default)")
-  .option("--css <framework>", "CSS framework (tailwind, sass)")
-  .option("--docker", "Add Docker support (Dockerfile + docker-compose)")
-  .option("--eslint", "Add ESLint configuration")
-  .option("--prettier", "Add Prettier configuration")
-  .option("--test", "Add testing setup (Jest)")
-  .option("--ci", "Add GitHub Actions CI workflow")
+  .option(
+    "--pm, --package-manager <pm>",
+    "Package manager to use (npm, yarn, pnpm)",
+  )
   .option("-a, --author <name>", "Author name")
   .option("-l, --license <type>", "License (MIT, ISC, Apache-2.0, GPL-3.0)")
-  .option("-p, --plugins <plugins...>", "Plugins to inject (comma or space separated)")
-  .option("--trust-remote", "Auto-accept remote template clones (for CI/agents)")
-  .option("--dry-run", "Preview files that would be created without making changes")
-  .option("--layers <layers...>", "Template layers to apply (for composable templates)")
-  .option("-n, --non-interactive", "Skip all prompts, use defaults and provided flags (for CI/agents)")
+  .option(
+    "-p, --plugins <plugins...>",
+    "Plugins to inject (comma or space separated)",
+  )
+  .option(
+    "--trust-remote",
+    "Auto-accept remote template clones (for CI/agents)",
+  )
+  .option(
+    "--allow-hooks",
+    "Run reviewed template hooks (executes shell commands)",
+  )
+  .option("--allow-scripts", "Allow dependency install lifecycle scripts")
+  .option(
+    "--dry-run",
+    "Preview files that would be created without making changes",
+  )
+  .option(
+    "--layers <layers...>",
+    "Template layers to apply (for composable templates)",
+  )
+  .option(
+    "-n, --non-interactive",
+    "Skip all prompts, use defaults and provided flags (for CI/agents)",
+  )
   .action(async (nameArg, options) => {
-    const nonInteractive = options.nonInteractive || process.env.FORGIX_NON_INTERACTIVE === "1" || !process.stdout.isTTY;
+    const nonInteractive =
+      options.nonInteractive ||
+      process.env.FORGIX_NON_INTERACTIVE === "1" ||
+      !process.stdout.isTTY;
     const config = await getConfig();
 
     try {
@@ -47,7 +68,10 @@ export const createCommand = new Command("create")
         projectName = "my-app";
         console.log(chalk.gray(`Using default project name: ${projectName}`));
       } else {
-        projectName = await input({ message: "Project name:", default: "my-app" });
+        projectName = await input({
+          message: "Project name:",
+          default: "my-app",
+        });
       }
 
       // --- Template ---
@@ -69,12 +93,7 @@ export const createCommand = new Command("create")
         { name: "Python Script", value: "python-script" },
         { name: "Python FastAPI", value: "fastapi" },
         new Separator(chalk.gray("--- Remote ---")),
-        { name: "GitHub Repository", value: "github-prompt" }
-      ];
-
-      const validTemplates = [
-        "react-vite", "react-vite-ts", "shadcn-next", "vue-app", "nextjs",
-        "svelte", "node-api", "express-ts", "python-script", "fastapi"
+        { name: "GitHub Repository", value: "github-prompt" },
       ];
 
       let template: string;
@@ -91,12 +110,21 @@ export const createCommand = new Command("create")
         });
       }
 
+      if (template === "github-prompt") {
+        if (nonInteractive)
+          throw new Error(
+            "Specify github:owner/repository in non-interactive mode.",
+          );
+        template = `github:${await input({ message: "GitHub repository (owner/repo):" })}`;
+      }
+
       // --- Package Manager ---
       const validPM: PackageManager[] = ["npm", "yarn", "pnpm"];
-      const packageManagerInput = options.packageManager || config.defaultPackageManager || "npm";
-      const packageManager = validPM.includes(packageManagerInput as PackageManager)
-        ? packageManagerInput as PackageManager
-        : "npm";
+      const packageManagerInput =
+        options.packageManager || config.defaultPackageManager || "npm";
+      if (!validPM.includes(packageManagerInput as PackageManager))
+        throw new Error("Unsupported package manager.");
+      const packageManager = packageManagerInput as PackageManager;
 
       // --- Author ---
       let author: string;
@@ -106,7 +134,10 @@ export const createCommand = new Command("create")
         author = config.defaultAuthor || "Developer";
         console.log(chalk.gray(`Using default author: ${author}`));
       } else {
-        author = await input({ message: "Author Name:", default: config.defaultAuthor });
+        author = await input({
+          message: "Author Name:",
+          default: config.defaultAuthor,
+        });
       }
 
       // --- License ---
@@ -124,42 +155,47 @@ export const createCommand = new Command("create")
             { name: "MIT", value: "MIT" },
             { name: "ISC", value: "ISC" },
             { name: "Apache-2.0", value: "Apache-2.0" },
-            { name: "GPL-3.0", value: "GPL-3.0" }
+            { name: "GPL-3.0", value: "GPL-3.0" },
           ],
-          default: config.defaultLicense
+          default: config.defaultLicense,
         });
       }
 
       // --- Plugins ---
       const pluginsPath = path.join(__dirname, "../../plugins");
       let availablePlugins: string[] = [];
-      if (fs.existsSync(pluginsPath)) availablePlugins = fs.readdirSync(pluginsPath);
+      if (fs.existsSync(pluginsPath))
+        availablePlugins = fs.readdirSync(pluginsPath);
 
       let selectedPlugins: string[] = [];
       if (options.plugins) {
         // --plugins docker eslint prettier
-        selectedPlugins = Array.isArray(options.plugins) ? options.plugins : [options.plugins];
+        selectedPlugins = (
+          Array.isArray(options.plugins) ? options.plugins : [options.plugins]
+        )
+          .flatMap((p: string) => p.split(","))
+          .filter(Boolean);
       } else if (nonInteractive) {
         // No plugins by default in non-interactive mode
       } else {
         if (availablePlugins.length > 0) {
           selectedPlugins = await checkbox({
             message: "Select Plugins to inject:",
-            choices: availablePlugins.map(p => ({ name: p, value: p }))
+            choices: availablePlugins.map((p) => ({ name: p, value: p })),
           });
         }
       }
 
       // Apply default config flags (only if not explicitly overridden)
       const configFlags = config.defaultFlags || [];
-      const git = options.git !== undefined ? options.git : configFlags.includes("--git") || config.autoGit;
-      const open = options.open !== undefined ? options.open : configFlags.includes("--open");
-      const typescript = options.typescript !== undefined ? options.typescript : configFlags.includes("--ts");
-      const eslint = options.eslint !== undefined ? options.eslint : configFlags.includes("--eslint");
-      const prettier = options.prettier !== undefined ? options.prettier : configFlags.includes("--prettier");
-      const test = options.test !== undefined ? options.test : configFlags.includes("--test");
-      const docker = options.docker !== undefined ? options.docker : configFlags.includes("--docker");
-      const ci = options.ci !== undefined ? options.ci : configFlags.includes("--ci");
+      const git =
+        options.git !== undefined
+          ? options.git
+          : configFlags.includes("--git") || config.autoGit;
+      const open =
+        options.open !== undefined
+          ? options.open
+          : configFlags.includes("--open");
 
       await runCreate({
         name: projectName,
@@ -170,19 +206,13 @@ export const createCommand = new Command("create")
         variables: { author, license },
         plugins: selectedPlugins,
         packageManager,
-        typescript,
-        css: options.css,
-        docker,
-        eslint,
-        prettier,
-        test,
-        ci,
         trustRemote: options.trustRemote,
+        allowHooks: options.allowHooks,
+        allowScripts: options.allowScripts,
         dryRun: options.dryRun,
         layers: options.layers,
-        nonInteractive
+        nonInteractive,
       });
-
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (nonInteractive) {

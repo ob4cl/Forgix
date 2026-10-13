@@ -4,6 +4,7 @@ import { execa } from "execa";
 import chalk from "chalk";
 import ora from "ora";
 import YAML from "yaml";
+import { containedPath } from "./paths.js";
 
 export interface Hook {
   id: string;
@@ -31,8 +32,7 @@ export function loadHooks(templatePath: string): HooksConfig | null {
     const content = fs.readFileSync(hooksFile, "utf-8");
     return YAML.parse(content) as HooksConfig;
   } catch {
-    console.warn(chalk.yellow("Warning: Failed to parse hooks.yaml, skipping hooks."));
-    return null;
+    throw new Error("Invalid hooks.yaml.");
   }
 }
 
@@ -44,13 +44,13 @@ function checkCondition(condition: string, targetDir: string): boolean {
   // Support simple conditions: "not_exists(.git)", "exists(package.json)"
   const notExistsMatch = condition.match(/^not_exists\((.+)\)$/);
   if (notExistsMatch) {
-    return !fs.existsSync(path.join(targetDir, notExistsMatch[1]));
+    return !fs.existsSync(containedPath(targetDir, notExistsMatch[1]));
   }
   const existsMatch = condition.match(/^exists\((.+)\)$/);
   if (existsMatch) {
-    return fs.existsSync(path.join(targetDir, existsMatch[1]));
+    return fs.existsSync(containedPath(targetDir, existsMatch[1]));
   }
-  return true; // Unknown conditions default to true
+  throw new Error("Unknown hook condition.");
 }
 
 function parseTimeout(timeout: string): number {
@@ -58,61 +58,75 @@ function parseTimeout(timeout: string): number {
   if (!match) return 60000; // Default 60s
   const val = parseInt(match[1]);
   switch (match[2]) {
-    case "s": return val * 1000;
-    case "m": return val * 60000;
-    case "h": return val * 3600000;
-    default: return 60000;
+    case "s":
+      return val * 1000;
+    case "m":
+      return val * 60000;
+    case "h":
+      return val * 3600000;
+    default:
+      return 60000;
   }
 }
 
 async function runHook(
   hook: Hook,
   targetDir: string,
-  vars: Record<string, string>
-): Promise<"success" | "warned" | "failed"> {
+  vars: Record<string, string>,
+): Promise<"success" | "skipped" | "warned" | "failed"> {
+  if (hook.async)
+    throw new Error(
+      "Background hooks are unsupported; hooks must finish before success is reported.",
+    );
   const name = hook.name || hook.id;
   const onError = hook.on_error || "fail";
-  const cwd = hook.cwd ? path.join(targetDir, resolveVars(hook.cwd, vars)) : targetDir;
-  const command = resolveVars(hook.run, vars);
+  const cwd = hook.cwd
+    ? containedPath(targetDir, resolveVars(hook.cwd, vars))
+    : targetDir;
+  // Variables are data in the environment, never interpolated into shell source.
+  const command = hook.run;
+  const env = Object.fromEntries(
+    Object.entries(vars).map(([key, value]) => [
+      `FORGIX_${key.replace(/([A-Z])/g, "_$1").toUpperCase()}`,
+      value,
+    ]),
+  );
   const timeout = hook.timeout ? parseTimeout(hook.timeout) : 60000;
   const maxRetries = hook.retry || 0;
 
   // Check condition
   if (hook.condition && !checkCondition(hook.condition, targetDir)) {
     console.log(chalk.gray(`  ⊘ ${name} (condition not met, skipped)`));
-    return "success";
+    return "skipped";
   }
 
   const spinner = ora(`  ${name}...`).start();
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      if (hook.async) {
-        spinner.text = `${name} (async, running in background...)`;
-        execa("sh", ["-c", command], { cwd, timeout }).catch(() => {});
-        spinner.succeed(chalk.gray(`  ${name} (async, started)`));
-        return "success";
-      }
-
-      await execa("sh", ["-c", command], { cwd, timeout });
+      await execa("sh", ["-c", command], { cwd, timeout, env });
       spinner.succeed(chalk.green(`  ✓ ${name}`));
       return "success";
     } catch (error) {
       if (attempt < maxRetries) {
         spinner.text = `${name} (retry ${attempt + 1}/${maxRetries})...`;
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
         continue;
       }
 
       const message = error instanceof Error ? error.message : String(error);
       if (onError === "warn") {
-        spinner.warn(chalk.yellow(`  ⚠ ${name} (warning: ${message.slice(0, 80)})`));
+        spinner.warn(
+          chalk.yellow(`  ⚠ ${name} (warning: ${message.slice(0, 80)})`),
+        );
         return "warned";
       } else if (onError === "ignore") {
         spinner.info(chalk.gray(`  ⊘ ${name} (ignored)`));
-        return "success";
+        return "warned";
       } else {
-        spinner.fail(chalk.red(`  ✘ ${name} (failed: ${message.slice(0, 80)})`));
+        spinner.fail(
+          chalk.red(`  ✘ ${name} (failed: ${message.slice(0, 80)})`),
+        );
         return "failed";
       }
     }
@@ -124,7 +138,8 @@ export async function runHooks(
   phase: "pre_scaffold" | "post_scaffold" | "post_install",
   hooks: HooksConfig,
   targetDir: string,
-  vars: Record<string, string> = {}
+  vars: Record<string, string> = {},
+  completed: string[] = [],
 ): Promise<boolean> {
   const hooksList = hooks[phase];
   if (!hooksList || hooksList.length === 0) return true;
@@ -134,6 +149,7 @@ export async function runHooks(
   let hasFailure = false;
   for (const hook of hooksList) {
     const result = await runHook(hook, targetDir, vars);
+    if (result === "success") completed.push(hook.id);
     if (result === "failed") {
       hasFailure = true;
       break; // Stop on first failure for fail hooks

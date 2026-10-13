@@ -4,13 +4,20 @@ import chalk from "chalk";
 import { execa } from "execa";
 
 export interface DepIssue {
-  type: "deprecated" | "vulnerable" | "outdated" | "missing-lock";
+  type:
+    | "deprecated"
+    | "vulnerable"
+    | "outdated"
+    | "missing-lock"
+    | "audit-unavailable";
   package?: string;
   message: string;
   severity: "low" | "medium" | "high" | "critical";
 }
 
-export async function analyzeDependencies(projectDir: string): Promise<DepIssue[]> {
+export async function analyzeDependencies(
+  projectDir: string,
+): Promise<DepIssue[]> {
   const issues: DepIssue[] = [];
   const pkgPath = path.join(projectDir, "package.json");
 
@@ -24,16 +31,16 @@ export async function analyzeDependencies(projectDir: string): Promise<DepIssue[
 
   // 1. Check for known deprecated packages
   const deprecatedPackages: Record<string, string> = {
-    "request": "Use fetch, axios, or got instead",
+    request: "Use fetch, axios, or got instead",
     "request-promise": "Use fetch, axios, or got instead",
     "node-uuid": "Use uuid instead",
     "gulp-util": "Use individual packages instead",
     "babel-eslint": "Use @babel/eslint-parser instead",
-    "tslint": "Use eslint with @typescript-eslint instead",
-    "istanbul": "Use nyc or c8 instead",
-    "bower": "Use npm/yarn/pnpm instead",
-    "jade": "Use pug instead",
-    "stylus": "Use sass or postcss instead",
+    tslint: "Use eslint with @typescript-eslint instead",
+    istanbul: "Use nyc or c8 instead",
+    bower: "Use npm/yarn/pnpm instead",
+    jade: "Use pug instead",
+    stylus: "Use sass or postcss instead",
   };
 
   for (const [pkgName, reason] of Object.entries(deprecatedPackages)) {
@@ -49,7 +56,9 @@ export async function analyzeDependencies(projectDir: string): Promise<DepIssue[
 
   // 2. Check for missing lock file
   const lockFiles = ["package-lock.json", "yarn.lock", "pnpm-lock.yaml"];
-  const hasLock = lockFiles.some(f => fs.existsSync(path.join(projectDir, f)));
+  const hasLock = lockFiles.some((f) =>
+    fs.existsSync(path.join(projectDir, f)),
+  );
   if (!hasLock) {
     issues.push({
       type: "missing-lock",
@@ -67,8 +76,11 @@ export async function analyzeDependencies(projectDir: string): Promise<DepIssue[
     });
 
     const audit = JSON.parse(stdout);
+    if (audit.error) throw new Error("npm audit could not complete.");
     if (audit.vulnerabilities) {
-      for (const [name, vuln] of Object.entries(audit.vulnerabilities as Record<string, any>)) {
+      for (const [name, vuln] of Object.entries(
+        audit.vulnerabilities as Record<string, any>,
+      )) {
         const severity = vuln.severity as DepIssue["severity"];
         issues.push({
           type: "vulnerable",
@@ -79,7 +91,11 @@ export async function analyzeDependencies(projectDir: string): Promise<DepIssue[
       }
     }
   } catch {
-    // npm audit may not be available, skip silently
+    issues.push({
+      type: "audit-unavailable",
+      message: "npm audit did not complete; vulnerability status is unknown",
+      severity: "high",
+    });
   }
 
   return issues;
@@ -94,10 +110,10 @@ export function printDepReport(issues: DepIssue[]): void {
   console.log(chalk.cyan("\n  Dependency Analysis\n"));
 
   // Group by severity
-  const critical = issues.filter(i => i.severity === "critical");
-  const high = issues.filter(i => i.severity === "high");
-  const medium = issues.filter(i => i.severity === "medium");
-  const low = issues.filter(i => i.severity === "low");
+  const critical = issues.filter((i) => i.severity === "critical");
+  const high = issues.filter((i) => i.severity === "high");
+  const medium = issues.filter((i) => i.severity === "medium");
+  const low = issues.filter((i) => i.severity === "low");
 
   for (const group of [
     { items: critical, color: chalk.red, label: "Critical" },
@@ -114,9 +130,11 @@ export function printDepReport(issues: DepIssue[]): void {
 
   console.log("");
   console.log(chalk.cyan("  Summary:"));
-  if (critical.length > 0) console.log(chalk.red(`    ${critical.length} critical`));
+  if (critical.length > 0)
+    console.log(chalk.red(`    ${critical.length} critical`));
   if (high.length > 0) console.log(chalk.red(`    ${high.length} high`));
-  if (medium.length > 0) console.log(chalk.yellow(`    ${medium.length} medium`));
+  if (medium.length > 0)
+    console.log(chalk.yellow(`    ${medium.length} medium`));
   if (low.length > 0) console.log(chalk.gray(`    ${low.length} low`));
   console.log("");
 }
@@ -124,11 +142,11 @@ export function printDepReport(issues: DepIssue[]): void {
 export function exportDepJSON(issues: DepIssue[]): object {
   return {
     total: issues.length,
-    critical: issues.filter(i => i.severity === "critical").length,
-    high: issues.filter(i => i.severity === "high").length,
-    medium: issues.filter(i => i.severity === "medium").length,
-    low: issues.filter(i => i.severity === "low").length,
-    issues: issues.map(i => ({
+    critical: issues.filter((i) => i.severity === "critical").length,
+    high: issues.filter((i) => i.severity === "high").length,
+    medium: issues.filter((i) => i.severity === "medium").length,
+    low: issues.filter((i) => i.severity === "low").length,
+    issues: issues.map((i) => ({
       type: i.type,
       package: i.package,
       message: i.message,

@@ -1,6 +1,7 @@
 import fs from "fs-extra";
 import path from "path";
 import YAML from "yaml";
+import { containedPath, validateTemplateTree } from "./paths.js";
 
 export interface TemplateLayer {
   name: string;
@@ -18,7 +19,9 @@ export interface CompositionConfig {
 
 const COMPOSITION_FILE = "composition.yaml";
 
-export function loadComposition(templatePath: string): CompositionConfig | null {
+export function loadComposition(
+  templatePath: string,
+): CompositionConfig | null {
   const compPath = path.join(templatePath, COMPOSITION_FILE);
   if (!fs.existsSync(compPath)) return null;
 
@@ -42,10 +45,17 @@ export function listLayers(templatePath: string): TemplateLayer[] {
 export function applyLayer(
   layerDir: string,
   targetDir: string,
-  mode: "overwrite" | "skip" | "merge" = "overwrite"
+  mode: "overwrite" | "skip" | "merge" = "overwrite",
 ): string[] {
+  if (!["overwrite", "skip", "merge"].includes(mode))
+    throw new Error("Unknown layer conflict policy.");
   const applied: string[] = [];
 
+  if (mode === "merge")
+    throw new Error(
+      "Merge layers are not supported; choose overwrite or skip.",
+    );
+  validateTemplateTree(layerDir);
   if (!fs.existsSync(layerDir)) return applied;
 
   function walk(src: string, rel: string) {
@@ -77,15 +87,17 @@ export function applyLayer(
 
 export function resolveCompositionLayers(
   templatePath: string,
-  selectedLayers: string[]
+  selectedLayers: string[],
 ): { path: string; layer: TemplateLayer }[] {
   const comp = loadComposition(templatePath);
-  if (!comp) return [];
+  if (!comp) throw new Error("Template has no valid composition.yaml.");
 
   const resolved: { path: string; layer: TemplateLayer }[] = [];
 
   // Base is always included
-  const basePath = path.join(templatePath, comp.base);
+  const basePath = containedPath(templatePath, comp.base);
+  if (!fs.existsSync(basePath) || !fs.statSync(basePath).isDirectory())
+    throw new Error("Composition base directory not found.");
   if (fs.existsSync(basePath)) {
     resolved.push({
       path: basePath,
@@ -100,10 +112,13 @@ export function resolveCompositionLayers(
 
   // Selected layers
   for (const layerName of selectedLayers) {
-    const layer = comp.layers.find(l => l.name === layerName);
-    if (!layer) continue;
+    const layer = comp.layers.find((l) => l.name === layerName);
+    if (!layer) throw new Error(`Unknown layer: ${layerName}`);
 
-    const layerPath = path.join(templatePath, layer.path);
+    if (layer.condition) throw new Error("Layer conditions are unsupported.");
+    const layerPath = containedPath(templatePath, layer.path);
+    if (!fs.existsSync(layerPath) || !fs.statSync(layerPath).isDirectory())
+      throw new Error(`Layer directory not found: ${layerName}`);
     if (fs.existsSync(layerPath)) {
       resolved.push({ path: layerPath, layer });
     }
